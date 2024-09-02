@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -31,24 +32,20 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
 
     @Override
     public Result getTypeList() {
-        String key = "cache:type:list";
+        String key = "shop:type:list";
         List<String> list = stringRedisTemplate.opsForList().range(key, 0, -1);
 
         if (list != null && list.size() > 0) {
-            JSONArray jsonArray = JSONUtil.parseArray(list.toString());
-            return Result.ok(JSONUtil.toList(jsonArray,ShopType.class));
+            List<ShopType> res = list.stream()
+                    .map(str -> JSONUtil.toBean(str,ShopType.class))
+                    .collect(Collectors.toList());
+            return Result.ok(res);
         }
 
-        List<ShopType> typeList = query().orderByAsc("sort").list();
+        List<ShopType> res = query().orderByAsc("sort").list();
 
-        if (typeList == null) {
-            return Result.fail("发生错误");
-        }
-
-        for (ShopType shopType : typeList) {
-            String jsonStr = JSONUtil.toJsonStr(shopType);
-            stringRedisTemplate.opsForList().rightPush(key,jsonStr);
-        }
-        return Result.ok(typeList);
+        res.forEach(shopType -> stringRedisTemplate.opsForList()
+                .rightPush(key, JSONUtil.toJsonStr(shopType)));
+        return Result.ok(res);
     }
 }
